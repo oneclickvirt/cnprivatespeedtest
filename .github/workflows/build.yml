@@ -1,0 +1,135 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+        with:
+          repository: oneclickvirt/privatespeedtest
+          token: ${{ secrets.PAT_TOKEN }}
+          path: privatespeedtest
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build binaries
+        run: |
+          cd privatespeedtest
+          
+          # Install dependencies if needed
+          go mod download || true
+          
+          # Build for multiple platforms and architectures
+          # Linux
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-linux-amd64
+          GOOS=linux GOARCH=386 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-linux-386
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-linux-arm64
+          GOOS=linux GOARCH=arm GOARM=7 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-linux-armv7
+          GOOS=linux GOARCH=riscv64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-linux-riscv64
+          
+          # macOS (Darwin)
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-darwin-arm64
+          
+          # FreeBSD
+          GOOS=freebsd GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-freebsd-amd64
+          GOOS=freebsd GOARCH=386 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-freebsd-386
+          GOOS=freebsd GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-freebsd-arm64
+          
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-windows-amd64.exe
+          GOOS=windows GOARCH=386 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-windows-386.exe
+          GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -trimpath -o ../privatespeedtest-windows-arm64.exe
+          
+          cd ..
+
+      - name: Strip binaries (optional, further reduce size)
+        run: |
+          # Install strip tools if available
+          sudo apt-get update
+          sudo apt-get install -y binutils || true
+          
+          # Strip Linux binaries
+          strip privatespeedtest-linux-amd64 || true
+          strip privatespeedtest-linux-386 || true
+          strip privatespeedtest-linux-arm64 || true
+          strip privatespeedtest-linux-armv7 || true
+          strip privatespeedtest-linux-riscv64 || true
+          
+          # Strip FreeBSD binaries
+          strip privatespeedtest-freebsd-amd64 || true
+          strip privatespeedtest-freebsd-386 || true
+          strip privatespeedtest-freebsd-arm64 || true
+          
+          # Strip macOS binaries
+          strip privatespeedtest-darwin-amd64 || true
+          strip privatespeedtest-darwin-arm64 || true
+
+      - name: Compress binaries with UPX
+        run: |
+          # Install UPX for further compression
+          wget https://github.com/upx/upx/releases/download/v4.2.2/upx-4.2.2-amd64_linux.tar.xz
+          tar -xf upx-4.2.2-amd64_linux.tar.xz
+          sudo mv upx-4.2.2-amd64_linux/upx /usr/local/bin/
+          
+          # Compress binaries (skip if it fails for certain platforms)
+          upx --best --lzma privatespeedtest-linux-amd64 || true
+          upx --best --lzma privatespeedtest-linux-386 || true
+          upx --best --lzma privatespeedtest-linux-arm64 || true
+          upx --best --lzma privatespeedtest-linux-armv7 || true
+          upx --best --lzma privatespeedtest-linux-riscv64 || true
+          upx --best --lzma privatespeedtest-freebsd-amd64 || true
+          upx --best --lzma privatespeedtest-freebsd-386 || true
+          upx --best --lzma privatespeedtest-freebsd-arm64 || true
+          upx --best --lzma privatespeedtest-darwin-amd64 || true
+          upx --best --lzma privatespeedtest-darwin-arm64 || true
+          upx --best --lzma privatespeedtest-windows-amd64.exe || true
+          upx --best --lzma privatespeedtest-windows-386.exe || true
+          upx --best --lzma privatespeedtest-windows-arm64.exe || true
+
+      - name: List built files
+        run: |
+          ls -lh privatespeedtest-*
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: output
+          name: Output Release
+          body: |
+            Automated build of privatespeedtest from private repository
+            
+            Build date: ${{ github.event.head_commit.timestamp }}
+            
+            Binaries are statically compiled with stripped symbols for minimal size.
+          files: |
+            privatespeedtest-linux-amd64
+            privatespeedtest-linux-386
+            privatespeedtest-linux-arm64
+            privatespeedtest-linux-armv7
+            privatespeedtest-linux-riscv64
+            privatespeedtest-darwin-amd64
+            privatespeedtest-darwin-arm64
+            privatespeedtest-freebsd-amd64
+            privatespeedtest-freebsd-386
+            privatespeedtest-freebsd-arm64
+            privatespeedtest-windows-amd64.exe
+            privatespeedtest-windows-386.exe
+            privatespeedtest-windows-arm64.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

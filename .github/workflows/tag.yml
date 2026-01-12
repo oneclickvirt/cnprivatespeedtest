@@ -1,0 +1,73 @@
+name: Sync Tag to Private Repository
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to create in private repository'
+        required: true
+        type: string
+
+jobs:
+  sync-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "tag_name=${{ github.event.inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout private repository
+        uses: actions/checkout@v4
+        with:
+          repository: oneclickvirt/privatespeedtest
+          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          TAG_NAME="${{ steps.tag.outputs.tag_name }}"
+          
+          # Check if tag already exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists in private repository"
+            exit 0
+          fi
+          
+          # Create tag on current commit
+          git tag -a "$TAG_NAME" -m "Synced tag $TAG_NAME from public repository"
+          
+          # Push tag to private repository
+          git push origin "$TAG_NAME"
+          
+          echo "Successfully created and pushed tag $TAG_NAME to private repository"
+
+      - name: Create GitHub Release in private repository
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: Release ${{ steps.tag.outputs.tag_name }}
+          body: |
+            Release ${{ steps.tag.outputs.tag_name }}
+            
+            This tag was automatically synced from the public repository.
+            
+            Created at: ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false
+          repository: oneclickvirt/privatespeedtest
+          token: ${{ secrets.PAT_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
