@@ -1,10 +1,5 @@
-# cnprivatespeedtest
+# Network Test Artifacts
 
+用于构建和分发受限访问的网络测试工具产物。
 
-```shell
-curl -L https://cdn.spiritlhl.net/https://github.com/oneclickvirt/cnprivatespeedtest/releases/download/output/privatespeedtest-linux-amd64 -o privatespeedtest && chmod 755 privatespeedtest
-```
-
-```shell
-./privatespeedtest -password 密码 -test
-```
+请从项目维护者提供的渠道获取与授权相符的构建产物，并按照随附说明运行。仓库不在公开文档中记录受限组件、节点数据或访问参数。
