@@ -4,6 +4,7 @@ name: Private privatespeedtest tasks
   - cron: 29 * * * *
   - cron: 20 5 * * *
   - cron: 47 */6 * * *
+  - cron: 34 * * * *
   workflow_dispatch:
     inputs:
       task:
@@ -16,6 +17,7 @@ name: Private privatespeedtest tasks
         - build
         - release
         - prepare
+        - sync-release
         default: ci
       release_tag:
         description: Existing private semantic version tag for release
@@ -38,20 +40,23 @@ jobs:
       PRIVATE_CI_TOKEN: ${{ secrets.PRIVATE_CI_TOKEN }}
       CI_JOB_KEY: ${{ github.job }}
       GITHUB_TOKEN: ${{ github.token }}
-      CI_TASK: ${{ github.event.schedule == '29 * * * *' && 'ci' || github.event.schedule == '20 5 * * *' && 'refresh' ||
-        github.event.schedule == '47 */6 * * *' && 'refresh-transfer' || inputs.task || 'ci' }}
+      CI_TASK: ${{ github.event.schedule == '34 * * * *' && 'sync-release' || github.event.schedule == '29 * * *
+        *' && 'ci' || github.event.schedule == '20 5 * * *' && 'refresh' || github.event.schedule == '47 */6 * *
+        *' && 'refresh-transfer' || inputs.task || 'ci' }}
       CI_RELEASE_TAG: ${{ inputs.release_tag }}
     steps:
-    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
     - name: Run private operation
-      run: python3 .github/scripts/private_tasks.py --repository privatespeedtest --task "$CI_TASK" --release-tag "$CI_RELEASE_TAG"
+      run: python3 .github/scripts/private_tasks.py --repository privatespeedtest --task "$CI_TASK" --release-tag
+        "$CI_RELEASE_TAG"
     - name: Save private diagnostics
       if: always()
       env:
         CI_JOB_STATUS: ${{ job.status }}
-      run: python3 .github/scripts/private_guard.py archive --repositories privatespeedtest,openspeedtest --status "$CI_JOB_STATUS"
+      run: python3 .github/scripts/private_guard.py archive --repositories privatespeedtest,openspeedtest --status
+        "$CI_JOB_STATUS"
     - name: Clean private workspace
       if: always()
       run: python3 .github/scripts/private_guard.py clean
