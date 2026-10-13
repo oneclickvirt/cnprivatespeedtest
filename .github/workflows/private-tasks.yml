@@ -55,7 +55,7 @@ jobs:
       if: always()
       env:
         CI_JOB_STATUS: ${{ job.status }}
-      run: python3 .github/scripts/private_guard.py archive --repositories privatespeedtest,openspeedtest --status
+      run: python3 .github/scripts/private_guard.py archive --repositories privatespeedtest --status
         "$CI_JOB_STATUS"
     - name: Clean private workspace
       if: always()
